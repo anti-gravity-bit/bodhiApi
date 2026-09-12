@@ -1,57 +1,74 @@
 # bodhiApi
 
-`bodhiApi` is a small, readable Go framework for building HTTP APIs.
+<div align="center">
 
-The name **bodhiApi** is inspired by my son’s name, **Sambodhi**, and by *bodhi*, a Buddhist term associated with awakening, understanding, and clarity. This project carries that inspiration as an engineering philosophy: make complexity visible, seek understanding before abstraction, and build software that is useful, reliable, and considerate of the people who depend on it.
+**A lightweight, zero-dependency Go HTTP framework for JSON REST APIs.**
 
-The project is intentionally being developed in the open and in small, understandable steps. Its goal is not to hide HTTP behind a large abstraction layer. Its goal is to provide a dependable API foundation while keeping routing, request context, middleware, errors, and server lifecycle easy to inspect.
+Readable source. Idiomatic `net/http`. Middleware, routing, and graceful shutdown.
 
-> Current release: **0th release / pre-alpha**
->
-> The API is experimental. Names, behavior, and package layout may change before the first stable release.
+[![Go](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
+[![Go Reference](https://pkg.go.dev/badge/github.com/anti-gravity-bit/bodhiApi.svg)](https://pkg.go.dev/github.com/anti-gravity-bit/bodhiApi)
+[![Zero dependencies](https://img.shields.io/badge/dependencies-stdlib%20only-2ea44f)](./go.mod)
+[![Tests](https://img.shields.io/badge/tests-passing-2ea44f?logo=github)](https://github.com/anti-gravity-bit/bodhiApi)
+[![Status](https://img.shields.io/badge/status-pre--alpha-orange)](https://github.com/anti-gravity-bit/bodhiApi)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
-## Why bodhiApi?
+**golang · http-framework · rest-api · web-framework · mux · router · middleware · json-api · microservices · net/http · graceful-shutdown · slog · request-id**
 
-Many API frameworks optimize for feature count first. bodhiApi takes a different approach:
+</div>
 
-- **Readable core:** routing and request dispatch use straightforward data structures and control flow.
-- **Small surface area:** handlers receive a focused `Context` instead of a large framework object.
-- **Standard library alignment:** the application exposes `net/http` handlers and uses standard Go HTTP types.
-- **Explicit behavior:** static routes, parameter routes, middleware order, error conversion, and server shutdown are visible in the code.
-- **Production-minded direction:** the initial core is small, but the roadmap explicitly targets operational safety, observability, security, testing, and compatibility.
-- **Continuous project:** the 0th release is a working foundation, not a claim that the framework is complete.
+> **bodhiApi** is a small, hackable HTTP toolkit for building REST backends in Go.
+> If you want Gin/Echo/Chi energy with a source tree you can actually read in one sitting,
+> start here.
 
-The project is unique mainly in its priorities: it treats comprehensibility as a feature. A contributor should be able to follow a request from the router to middleware to context to handler to response without learning a large internal runtime.
+bodhiApi is intentionally small: the request path, routing rules, middleware,
+errors, and server lifecycle should be easy for a maintainer — human or AI agent —
+to understand, test, and change.
 
-## The philosophy behind the name
+## Why developers notice this repo
 
-The Buddhist idea of *bodhi* is used here as inspiration, not as a claim that software can reproduce spiritual practice. It gives the project a set of practical engineering reminders:
+- **Zero third-party dependencies.** Just the Go standard library: `net/http`, `log/slog`, `encoding/json`.
+- **Drop-in `net/http` compatibility.** Use `App.Handler()` with `httptest`, existing servers, or your own `http.Server`.
+- **REST-ready routing.** Static paths and named parameters such as `/users/:id`. GET, POST, PUT, PATCH, DELETE helpers.
+- **Middleware pipeline.** Panic recovery, `X-Request-ID` correlation, structured `slog` access logs — plus your own wrappers.
+- **Safe JSON errors.** Unknown errors become generic 500s so secrets in `error.Error()` never leak to clients.
+- **Graceful shutdown.** `ListenAndServe` / `Listen` + `Shutdown` for production process lifecycle.
+- **Readable internals.** Linear-scan router, explicit context, no reflection magic, no codegen.
+- **Agent-friendly layout.** Public facade at the module root; implementation under `internal/core`.
 
-- **Clarity over unnecessary complexity:** understand the request path, data flow, and failure modes before adding abstractions.
-- **Mindful simplicity:** keep the framework small enough that maintainers can reason about its behavior.
-- **Right effort:** improve correctness and production safety continuously, without adding features merely for appearance.
-- **Compassion through reliability:** treat predictable uptime, safe errors, clear documentation, and respectful data handling as ways of caring for users and operators.
-- **Non-attachment to early design:** the 0th release is a beginning. Designs should evolve when evidence, tests, and real usage show a better path.
-- **Interdependence:** APIs connect clients, services, databases, operators, and people. Changes should consider the whole system rather than only the local function.
-- **Continuous learning:** every bug, test, review, and production observation should improve the framework.
+Looking for a **lightweight Go REST framework**, a **stdlib HTTP router**, a **Chi/Gin alternative**,
+or a **JSON API starter** you can fork? You are in the right place.
 
-These principles are intentionally translated into engineering practices: explicit code, small interfaces, stable error contracts, strong tests, observability, secure defaults, and honest documentation.
+## Contents
 
-## Installation
+- [What it provides](#what-it-provides)
+- [Quick start](#quick-start)
+- [Installation](#installation)
+- [Architecture](#architecture)
+- [Project layout](#project-layout)
+- [Routing](#routing)
+- [Middleware](#middleware)
+- [Context and errors](#context-and-errors)
+- [How it compares](#how-it-compares)
+- [Development](#development)
+- [Roadmap](#roadmap)
+- [Project status](#project-status)
+- [Keywords](#keywords)
 
-The current module path is:
+## What it provides
 
-```text
-github.com/anti-gravity-bit/bodhiApi
-```
+| Area | What you get |
+|---|---|
+| **HTTP server** | Standard-library-compatible `net/http` handler and lifecycle |
+| **Router** | Static routes and named parameters (`/users/:id`) |
+| **Methods** | GET, POST, PUT, PATCH, DELETE helpers |
+| **Context** | Params, query strings, headers, JSON/status writers, request-scoped values |
+| **Middleware** | Recover panics, request IDs, structured logs, composable `Use` |
+| **Errors** | Consistent JSON HTTP errors that hide unknown internals |
+| **Ops** | Timeouts, header limits, graceful shutdown |
 
-Because this is the 0th release, use a version or commit explicitly while the API evolves:
-
-```bash
-go get github.com/anti-gravity-bit/bodhiApi
-```
-
-The package name is `bodhiApi`.
+The project is pre-alpha. The API and implementation may evolve before the first
+stable release.
 
 ## Quick start
 
@@ -59,32 +76,32 @@ The package name is `bodhiApi`.
 package main
 
 import (
-	"net/http"
+    "net/http"
 
-	bodhiApi "github.com/anti-gravity-bit/bodhiApi"
+    bodhiApi "github.com/anti-gravity-bit/bodhiApi"
 )
 
 func main() {
-	app := bodhiApi.New(bodhiApi.Info{
-		Title:   "Users API",
-		Version: "0.0.0",
-	})
+    app := bodhiApi.New(bodhiApi.Info{
+        Title:   "Users API",
+        Version: "0.0.0",
+    })
 
-	app.GET("/users/:id", func(c bodhiApi.Context) error {
-		return c.JSON(http.StatusOK, map[string]string{
-			"id": c.Param("id"),
-		})
-	})
+    app.GET("/users/:id", func(requestContext bodhiApi.Context) error {
+        return requestContext.JSON(http.StatusOK, map[string]string{
+            "id": requestContext.Param("id"),
+        })
+    })
 
-	app.POST("/users", func(c bodhiApi.Context) error {
-		return c.JSON(http.StatusCreated, map[string]string{
-			"status": "created",
-		})
-	})
+    app.POST("/users", func(requestContext bodhiApi.Context) error {
+        return requestContext.JSON(http.StatusCreated, map[string]string{
+            "status": "created",
+        })
+    })
 
-	if err := app.ListenAndServe(":8080"); err != nil {
-		panic(err)
-	}
+    if listenError := app.ListenAndServe(":8080"); listenError != nil {
+        panic(listenError)
+    }
 }
 ```
 
@@ -94,25 +111,96 @@ The built-in `GET /health` route returns:
 {"status":"ok"}
 ```
 
-## Request handling model
+## Installation
 
-A request follows this path:
+```bash
+go get github.com/anti-gravity-bit/bodhiApi
+```
 
-1. `App.Handler` receives the standard `net/http` request.
-2. The router compares the HTTP method and URL path against registered routes.
-3. Exact static routes take precedence over parameter routes.
-4. Middleware wraps the selected handler.
-5. A request-scoped `Context` is created.
-6. The handler reads parameters, query values, and headers or writes JSON/status responses.
-7. Returned errors are converted to `HTTPError` responses when no response has already been written.
+Import it as:
 
-This model is deliberately simple enough to debug with ordinary Go tools.
+```go
+import bodhiApi "github.com/anti-gravity-bit/bodhiApi"
+```
+
+Requires **Go 1.26.1** or newer.
+
+## Architecture
+
+The public package remains at the module root so existing users can keep importing
+`github.com/anti-gravity-bit/bodhiApi`. Implementation responsibilities are
+separated below it rather than placing every concern in one root file.
+
+```mermaid
+flowchart TD
+    Client[HTTP client] --> Handler[App.Handler]
+    Handler --> Router[Router]
+    Router --> Match{Route match}
+    Match -->|found| Middleware[Middleware chain]
+    Match -->|missing| ErrorHandler[404 or 405 handler]
+    Middleware --> Context[Request Context]
+    ErrorHandler --> Context
+    Context --> UserHandler[Application handler]
+    UserHandler --> Response[JSON or status response]
+    UserHandler --> ErrorResponse[Error conversion]
+    ErrorResponse --> Response
+```
+
+### Request lifecycle
+
+1. `App.Handler` receives a standard `net/http` request.
+2. The router matches method and path segments.
+3. Middleware wraps the selected handler.
+4. A request-scoped `Context` is created.
+5. The handler reads input or writes a response.
+6. Returned errors become safe JSON HTTP errors when no response was written.
+
+## Project layout
+
+```text
+bodhiApi/
+├── api.go                         # stable public facade and type aliases
+├── api_test.go                    # public API and integration tests
+├── example_test.go                # godoc examples
+├── internal/
+│   └── core/
+│       ├── contracts.go            # shared Handler, Middleware, Context contracts
+│       ├── app/
+│       │   └── app.go              # application lifecycle and request dispatch
+│       ├── context/
+│       │   ├── context.go          # request state and response helpers
+│       │   └── context_test.go     # context behavior tests
+│       ├── errors/
+│       │   ├── errors.go           # safe HTTP error model and conversion
+│       │   └── errors_test.go      # error contract tests
+│       ├── middleware/
+│       │   ├── middleware.go       # recovery, request IDs, structured logs
+│       │   └── middleware_test.go  # middleware behavior tests
+│       └── router/
+│           ├── router.go           # route registration and matching
+│           └── router_test.go      # precedence and validation tests
+├── go.mod                         # module metadata — stdlib only
+├── README.md                      # usage and architecture guide
+└── CONTRIBUTING.md                # human and AI-agent maintenance guide
+```
+
+### Package boundaries
+
+| Area | Responsibility | Should depend on |
+|---|---|---|
+| Public root | Stable exported API | Internal implementation |
+| `internal/core` | Shared contracts | Standard library types |
+| `internal/core/app` | Lifecycle and request dispatch | Router, context, middleware, errors |
+| `internal/core/router` | Registration and matching | Core contracts, context, errors |
+| `internal/core/context` | Request/response state | `net/http` |
+| `internal/core/middleware` | Recovery, request IDs, logging | Core contracts and errors |
+| `internal/core/errors` | Safe HTTP error model | Standard errors and HTTP |
+
+The `internal` packages are not importable by applications outside this module.
+That keeps implementation details replaceable while the root package remains the
+compatibility boundary.
 
 ## Routing
-
-### Current routing behavior
-
-Routes are registered with the convenience methods `GET`, `POST`, `PUT`, `PATCH`, and `DELETE`, or directly with `Handle`.
 
 ```go
 app.GET("/users", listUsers)
@@ -120,41 +208,20 @@ app.GET("/users/:id", getUser)
 app.POST("/users", createUser)
 ```
 
-Current rules:
+Current behavior:
 
 - Paths must begin with `/`.
-- Routes are matched by HTTP method and path segments.
-- A segment beginning with `:` is a parameter.
-- Parameters are available through `c.Param("name")`.
-- Static routes are preferred over parameter routes.
-- The first matching parameter route is used as the fallback.
-- A trailing slash remains significant (`/users` and `/users/` are different).
-- A matching path with a different method produces a 405 error with allowed methods.
-- An unknown path produces a 404 error.
+- Routes match HTTP method and path segments.
+- A segment beginning with `:` is a named parameter.
+- Parameters are available with `requestContext.Param("name")`.
+- Static routes take precedence over parameter routes.
+- The first matching parameter route is used as fallback.
+- Trailing slashes are significant.
+- A matching path with another method returns 405 details.
+- An unknown path returns a 404 error.
 
-### Production routing table target
-
-The current implementation uses a slice and linear scan because it is easy to understand. For production-scale routing, the next routing-table design should preserve the same semantics while improving lookup, validation, and introspection.
-
-| Capability | 0th release | Production target |
-|---|---|---|
-| Static routes | Supported | Trie/radix lookup with deterministic precedence |
-| Named parameters | Supported with `:name` | Validated names, collision checks, typed constraints |
-| Wildcards | Not yet supported | Explicit catch-all syntax with strict precedence |
-| HTTP methods | GET, POST, PUT, PATCH, DELETE | Full standard method set plus custom methods |
-| Method mismatch | 405 error details | 405 response with `Allow` header |
-| Route precedence | Static before parameter | Static, constrained parameter, wildcard precedence table |
-| Trailing slash | Significant | Configurable strict, redirect, or canonical mode |
-| Duplicate routes | Not explicitly rejected | Registration-time conflict detection |
-| Route groups | Not yet supported | Prefix, middleware, tags, and version groups |
-| API versioning | Manual paths | First-class `/v1` groups and negotiated version policy |
-| Route inspection | Internal route slice | Public route table/debug endpoint and generated documentation |
-| Matching cost | Linear scan | Near O(path segments) lookup |
-| Route constraints | None | UUID, integer, regex, and custom predicate constraints |
-| Host matching | Not yet supported | Optional host/subdomain routing |
-| Content negotiation | Not yet supported | Explicit media-type and format matching |
-
-A production routing table should also define conflicts before the server starts. Ambiguous patterns should fail during registration rather than depend on registration order.
+The current router intentionally uses a readable linear scan. A future optimized
+trie/radix router must preserve these semantics.
 
 ## Middleware
 
@@ -167,198 +234,135 @@ type Middleware func(Handler) Handler
 Example:
 
 ```go
-app.Use(func(next bodhiApi.Handler) bodhiApi.Handler {
-	return func(c bodhiApi.Context) error {
-		// before
-		err := next(c)
-		// after
-		return err
-	}
+app.Use(func(nextHandler bodhiApi.Handler) bodhiApi.Handler {
+    return func(requestContext bodhiApi.Context) error {
+        // before
+        handlerError := nextHandler(requestContext)
+        // after
+        return handlerError
+    }
 })
 ```
 
-The current default middleware stack includes:
+The default stack is:
 
-- `Recover`: converts panics to an internal server error.
-- `RequestID`: reuses or generates `X-Request-ID`.
-- `Logger`: emits structured `slog` request logs.
+```mermaid
+flowchart LR
+    Recover --> RequestID --> Logger --> RouteHandler
+```
 
-Recommended future middleware includes authentication, authorization, CORS, compression, rate limiting, request size limits, timeout enforcement, metrics, tracing, and audit logging.
+- `Recover` converts panics into internal server errors.
+- `RequestID` reuses or generates `X-Request-ID`.
+- `Logger` emits structured `log/slog` request logs.
 
-## Errors
+## Context and errors
 
-Use `HTTPError` when a handler needs to return a deliberate HTTP response:
+`Context` provides:
+
+- `Request()` and `ResponseWriter()`
+- `Param`, `Query`, and `Header`
+- `JSON` and `Status` response helpers
+- Request-scoped `Set` and `Get` storage
+
+Return an explicit HTTP error when a request is invalid:
 
 ```go
 return bodhiApi.NewHTTPError(
-	http.StatusBadRequest,
-	"email is required",
+    http.StatusBadRequest,
+    "email is required",
 )
 ```
 
-Helpers are available for common cases:
+Common helpers include:
 
 ```go
 return bodhiApi.NotFound("user not found")
 return bodhiApi.MethodNotAllowed("GET, POST")
 ```
 
-`HTTPError` contains:
+Unknown errors are converted to a generic internal error so implementation details
+are not exposed to API clients.
 
-- `Status`: HTTP response status code.
-- `Message`: human-readable error message.
-- `Code`: stable machine-readable code.
-- `Details`: optional structured metadata.
+## How it compares
 
-Unknown errors are intentionally converted to a generic internal error so implementation details are not exposed to clients.
+bodhiApi is not trying to replace every feature of Gin, Echo, Chi, or Fiber.
+It is a **small JSON REST foundation** for people who want to read the source,
+teach HTTP servers, or grow a backend without a large dependency graph.
 
-## 0th-release scope
+| | bodhiApi | Typical batteries-included framework |
+|---|---|---|
+| Dependencies | Standard library only | Often several third-party modules |
+| Router | Linear scan, explicit rules | Trie/radix, sometimes more magic |
+| API surface | Small, documented facade | Large helper catalog |
+| Best fit | Readable REST APIs, learning, forking | Huge apps that want every plugin |
 
-The 0th release currently provides:
-
-- A small `net/http` compatible application type.
-- Basic static and parameter routing.
-- GET, POST, PUT, PATCH, and DELETE registration helpers.
-- Request context access for path parameters, query values, and headers.
-- JSON and status response helpers.
-- Request-scoped context storage.
-- Middleware composition.
-- Panic recovery.
-- Request IDs.
-- Structured request logging with `log/slog`.
-- HTTP error types and JSON error responses.
-- Graceful server shutdown.
-- Unit and integration-style tests around the current behavior.
-
-It does not yet promise stable APIs, full production hardening, OpenAPI generation, database integration, authentication, or a complete observability stack.
-
-## Next targets
-
-The next development targets are:
-
-1. **Routing table v1**
-   - Replace linear route matching with a deterministic trie/radix structure.
-   - Add duplicate and ambiguous route validation.
-   - Add route groups and group-level middleware.
-   - Add full method support and correct `Allow` headers.
-
-2. **Request and response safety**
-   - Add request body size limits.
-   - Add configurable request timeouts.
-   - Prevent accidental double writes.
-   - Add typed binding and validation with explicit error messages.
-
-3. **Production observability**
-   - Add metrics hooks and Prometheus-compatible metrics.
-   - Add OpenTelemetry tracing hooks.
-   - Add correlation IDs and trace propagation.
-   - Add structured access-log fields for status and response size.
-
-4. **Security defaults**
-   - Add secure headers.
-   - Add CORS policy middleware.
-   - Add rate limiting.
-   - Add authentication and authorization extension points.
-   - Add trusted-proxy and forwarded-header configuration.
-
-5. **API contract tooling**
-   - Add OpenAPI generation.
-   - Add request/response schema validation.
-   - Add versioning and deprecation metadata.
-   - Add generated client and documentation workflows.
-
-6. **Operational maturity**
-   - Add readiness and liveness endpoints.
-   - Add graceful drain behavior.
-   - Add configurable server limits.
-   - Add deployment examples for containers and orchestration platforms.
-
-## Production-level standards checklist
-
-To become a production-level API development framework, bodhiApi should implement or document the following standards.
-
-### HTTP and routing
-
-- Correct status codes and method semantics.
-- `Allow` headers for 405 responses.
-- RFC-compatible path and query handling.
-- Configurable trailing-slash policy.
-- Route conflict detection.
-- Request URI and header size limits.
-- Content negotiation.
-- Proper `HEAD`, `OPTIONS`, and `CONNECT` handling where applicable.
-- HTTP/2 and HTTP/3 deployment guidance.
-
-### Security
-
-- TLS configuration guidance and secure defaults.
-- HSTS, CSP, `X-Content-Type-Options`, and related security headers.
-- CORS configuration with explicit origin policy.
-- CSRF guidance for cookie-authenticated APIs.
-- Authentication and authorization interfaces.
-- Input validation and output encoding.
-- Request body and multipart upload limits.
-- Rate limiting and abuse protection.
-- Secret management guidance.
-- Safe error redaction.
-- Dependency and supply-chain scanning.
-
-### Reliability
-
-- Context cancellation propagation.
-- Per-request deadlines and timeouts.
-- Graceful shutdown and connection draining.
-- Retry guidance with idempotency rules.
-- Circuit breaker and bulkhead extension points.
-- Health, readiness, and startup probes.
-- Backpressure and bounded concurrency.
-- Clear behavior for partial writes and client disconnects.
-
-### Observability
-
-- Structured logs with stable field names.
-- Request ID and trace ID propagation.
-- Metrics for request count, latency, status, errors, and in-flight requests.
-- Distributed tracing integration.
-- Status and response-size capture.
-- Log redaction rules for credentials and personal data.
-- Debug endpoints disabled or protected in production.
-
-### API design
-
-- OpenAPI 3.x generation and validation.
-- Consistent error envelope.
-- Pagination, filtering, and sorting conventions.
-- Idempotency keys for unsafe retryable operations.
-- API versioning and deprecation policy.
-- Compatibility and migration policy.
-- Standard date, time, and identifier formats.
-- ETag and conditional request support where useful.
-
-### Testing and delivery
-
-- Unit, integration, and end-to-end tests.
-- Race detector and fuzz testing.
-- Contract and compatibility tests.
-- Load and soak testing.
-- Static analysis and vulnerability scanning.
-- Reproducible builds.
-- Semantic versioning after the first stable release.
-- Changelog and migration guides.
-- CI checks for formatting, tests, race detection, and security.
+If you outgrow it, `App.Handler()` is still a plain `http.Handler`.
 
 ## Development
 
-Run formatting and tests from the module root:
+The repository requires Go 1.26.1 or newer.
 
 ```bash
+# Format source files
 gofmt -w .
+
+# Run all tests
 go test ./...
+
+# Run tests with the race detector
 go test -race ./...
+
+# Inspect packages
+go list ./...
 ```
 
-The project is intentionally small. Before adding a feature, prefer a clear extension point and a focused test over a large abstraction. Keep behavior explicit, document compatibility implications, and update this README when a roadmap target becomes implemented.
+Keep changes focused and preserve the public root package unless an intentional
+API change is documented. Add tests alongside the package or behavior they cover.
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for design rules and agent guidance.
+
+## Roadmap
+
+### Routing
+
+- Deterministic trie/radix lookup
+- Duplicate and ambiguous route validation
+- Route groups and group-level middleware
+- Full HTTP method support and correct `Allow` headers
+
+### Safety and API ergonomics
+
+- Request body limits and configurable timeouts
+- Double-write protection
+- Typed binding and validation
+- Consistent pagination and content negotiation helpers
+
+### Production operations
+
+- Metrics and OpenTelemetry hooks
+- Secure headers, CORS, and rate limiting
+- Readiness and startup probes
+- Deployment and graceful-drain guidance
+- OpenAPI generation and compatibility tooling
 
 ## Project status
 
-`bodhiApi` is under continuous development. The 0th release should be treated as an experimental foundation for learning, prototyping, and contributing—not as a promise of production readiness. Production use should wait until the routing, security, observability, reliability, and compatibility targets above are implemented and documented.
+This is the 0th release / pre-alpha. The project is a working foundation, not a
+promise of a stable framework contract. Feedback, tests, and real usage should
+shape future changes.
+
+The name **bodhiApi** is inspired by *bodhi*, a concept associated with clarity
+and understanding. In engineering terms, that means making complexity visible,
+choosing simple designs that can be reasoned about, and improving reliability
+continuously.
+
+If this matches how you like to build Go services, star the repo, open an issue,
+or send a focused pull request.
+
+## Keywords
+
+`golang` `go` `http` `http-framework` `web-framework` `rest` `rest-api` `json-api`
+`router` `mux` `middleware` `net-http` `api-server` `microservices` `backend`
+`zero-dependency` `stdlib` `graceful-shutdown` `request-id` `slog` `panic-recovery`
+`chi-alternative` `gin-alternative` `echo-alternative` `lightweight` `hackable`
+`developer-tools` `open-source`
