@@ -8,8 +8,9 @@ Readable source. Idiomatic `net/http`. Middleware, routing, and graceful shutdow
 
 [![Go](https://img.shields.io/badge/Go-1.26.1-00ADD8?logo=go)](https://go.dev/)
 [![Go Reference](https://pkg.go.dev/badge/github.com/anti-gravity-bit/bodhiApi.svg)](https://pkg.go.dev/github.com/anti-gravity-bit/bodhiApi)
+[![CI](https://github.com/anti-gravity-bit/bodhiApi/actions/workflows/test.yml/badge.svg)](https://github.com/anti-gravity-bit/bodhiApi/actions/workflows/test.yml)
 [![Zero dependencies](https://img.shields.io/badge/dependencies-stdlib%20only-2ea44f)](./go.mod)
-[![Tests](https://img.shields.io/badge/tests-passing-2ea44f?logo=github)](https://github.com/anti-gravity-bit/bodhiApi)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![Status](https://img.shields.io/badge/status-pre--alpha-orange)](https://github.com/anti-gravity-bit/bodhiApi)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
@@ -24,6 +25,8 @@ Readable source. Idiomatic `net/http`. Middleware, routing, and graceful shutdow
 bodhiApi is intentionally small: the request path, routing rules, middleware,
 errors, and server lifecycle should be easy for a maintainer — human or AI agent —
 to understand, test, and change.
+
+![20-second terminal demo: go run ./examples/todo, GET /health, GET /users/:id, Ctrl-C drain](docs/demo.gif)
 
 ## Why developers notice this repo
 
@@ -54,6 +57,7 @@ or a **JSON API starter** you can fork? You are in the right place.
 - [Roadmap](#roadmap)
 - [Project status](#project-status)
 - [Keywords](#keywords)
+- [License](#license)
 
 ## What it provides
 
@@ -71,6 +75,25 @@ The project is pre-alpha. The API and implementation may evolve before the first
 stable release.
 
 ## Quick start
+
+From the module root:
+
+```bash
+go run ./examples/todo
+```
+
+That starts `Todo API` on `:8080` with graceful shutdown. In another terminal:
+
+```bash
+curl -s http://127.0.0.1:8080/health
+curl -s http://127.0.0.1:8080/users/42
+curl -s http://127.0.0.1:8080/todos
+```
+
+Press **Ctrl-C** in the server terminal to drain in-flight requests and exit.
+The 20-second recording above is that same session.
+
+Or write the server yourself:
 
 ```go
 package main
@@ -159,9 +182,17 @@ flowchart TD
 
 ```text
 bodhiApi/
+├── LICENSE                        # MIT
 ├── api.go                         # stable public facade and type aliases
 ├── api_test.go                    # public API and integration tests
 ├── example_test.go                # godoc examples
+├── examples/
+│   └── todo/                      # runnable API with graceful shutdown
+├── docs/
+│   └── demo.gif                   # 20s terminal demo
+├── .github/
+│   ├── workflows/test.yml         # go test ./... on push
+│   └── social-preview.png         # 1280×640 Open Graph image
 ├── internal/
 │   └── core/
 │       ├── contracts.go            # shared Handler, Middleware, Context contracts
@@ -319,6 +350,8 @@ go list ./...
 Keep changes focused and preserve the public root package unless an intentional
 API change is documented. Add tests alongside the package or behavior they cover.
 
+Pushes run `go test ./...` in GitHub Actions (`.github/workflows/test.yml`).
+
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for design rules and agent guidance.
 
 ## Roadmap
@@ -366,3 +399,7 @@ or send a focused pull request.
 `zero-dependency` `stdlib` `graceful-shutdown` `request-id` `slog` `panic-recovery`
 `chi-alternative` `gin-alternative` `echo-alternative` `lightweight` `hackable`
 `developer-tools` `open-source`
+
+## License
+
+bodhiApi is licensed under the [MIT License](./LICENSE).

@@ -30,14 +30,26 @@ public facade -> app -> router/context/middleware/errors
 
 ## Directory guide
 
+- `LICENSE`: MIT license (required for OSI / r/opensource).
 - `api.go`: exported aliases, constructors, and compatibility functions.
 - `example_test.go`: godoc examples for pkg.go.dev.
+- `examples/todo`: runnable API with graceful shutdown (`go run ./examples/todo`).
+- `.github/workflows/test.yml`: `go test ./...` on push.
+- `.github/social-preview.png`: 1280×640 image for Settings → Social preview.
 - `internal/core/app`: application lifecycle and request dispatch.
 - `internal/core/context`: request-scoped state and response helpers.
 - `internal/core/errors`: public error shape and safe conversion.
 - `internal/core/middleware`: built-in middleware and request metadata.
 - `internal/core/router`: route registration, matching, and middleware order.
 - `api_test.go`: public integration tests.
+
+## GitHub repository settings
+
+These are not encoded in git; set them on github.com after push:
+
+1. **Topics** (About → gear): `go`, `golang`, `http`, `router`, `middleware`, `net-http`, `json-api`.
+2. **Social preview** (Settings → General → Social preview): upload `.github/social-preview.png`
+   (1280×640 PNG, under 1 MB).
 
 ## Change workflow
 
