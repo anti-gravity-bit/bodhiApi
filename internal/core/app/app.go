@@ -106,6 +106,12 @@ func (application *App) Use(middleware ...core.Middleware) {
 	application.applicationRouter.Use(middleware...)
 }
 
+// Group returns a route group that registers on the application router with
+// the given path prefix. Group middleware runs inside the application stack.
+func (application *App) Group(prefix string) *router.Group {
+	return application.applicationRouter.Group(prefix)
+}
+
 // Handler returns a net/http handler that dispatches through the application
 // router. It is safe to use with httptest and with a custom http.Server.
 func (application *App) Handler() http.Handler { return http.HandlerFunc(application.serve) }
@@ -118,6 +124,7 @@ func (application *App) serve(responseWriter http.ResponseWriter, httpRequest *h
 	if !matchResult.Found {
 		if len(matchResult.Allow) > 0 {
 			allowedMethods := strings.Join(matchResult.Allow, ", ")
+			responseWriter.Header().Set("Allow", allowedMethods)
 			matchedHandler = func(core.Context) error { return coreerrors.MethodNotAllowed(allowedMethods) }
 		} else {
 			matchedHandler = func(core.Context) error { return coreerrors.NotFound("not found") }

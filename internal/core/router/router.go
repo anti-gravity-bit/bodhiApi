@@ -234,6 +234,7 @@ func (routerInstance *Router) Handler() http.Handler {
 		if !matchResult.Found {
 			if len(matchResult.Allow) > 0 {
 				allowedMethods := strings.Join(matchResult.Allow, ", ")
+				responseWriter.Header().Set("Allow", allowedMethods)
 				matchedHandler = func(core.Context) error { return coreerrors.MethodNotAllowed(allowedMethods) }
 			} else {
 				matchedHandler = func(core.Context) error { return coreerrors.NotFound("not found") }
@@ -247,4 +248,92 @@ func (routerInstance *Router) Handler() http.Handler {
 			_ = json.NewEncoder(responseWriter).Encode(httpError)
 		}
 	})
+}
+
+// Group is a prefixed subset of routes on a Router.
+//
+// Prefix is prepended to every path registered through the group. Middleware
+// registered with Use is wrapped around handlers at registration time so it
+// runs inside the router stack, closest to the handler.
+type Group struct {
+	router     *Router
+	prefix     string
+	middleware []core.Middleware
+}
+
+// Group returns a route group that shares this router and prepends prefix to
+// every registered path.
+func (routerInstance *Router) Group(prefix string) *Group {
+	return &Group{router: routerInstance, prefix: prefix}
+}
+
+// GET registers a GET route under the group prefix.
+func (routeGroup *Group) GET(path string, handler core.Handler) {
+	routeGroup.Handle(http.MethodGet, path, handler)
+}
+
+// POST registers a POST route under the group prefix.
+func (routeGroup *Group) POST(path string, handler core.Handler) {
+	routeGroup.Handle(http.MethodPost, path, handler)
+}
+
+// PUT registers a PUT route under the group prefix.
+func (routeGroup *Group) PUT(path string, handler core.Handler) {
+	routeGroup.Handle(http.MethodPut, path, handler)
+}
+
+// PATCH registers a PATCH route under the group prefix.
+func (routeGroup *Group) PATCH(path string, handler core.Handler) {
+	routeGroup.Handle(http.MethodPatch, path, handler)
+}
+
+// DELETE registers a DELETE route under the group prefix.
+func (routeGroup *Group) DELETE(path string, handler core.Handler) {
+	routeGroup.Handle(http.MethodDelete, path, handler)
+}
+
+// Use appends middleware that wraps routes registered on this group after this
+// call. Group middleware runs inside the router/application stack.
+func (routeGroup *Group) Use(middleware ...core.Middleware) {
+	routeGroup.middleware = append(routeGroup.middleware, middleware...)
+}
+
+// Group returns a nested group whose prefix is joined with this group's prefix.
+// The nested group inherits a copy of the current group middleware.
+func (routeGroup *Group) Group(prefix string) *Group {
+	inheritedMiddleware := append([]core.Middleware{}, routeGroup.middleware...)
+	return &Group{router: routeGroup.router, prefix: joinGroupPath(routeGroup.prefix, prefix), middleware: inheritedMiddleware}
+}
+
+// Handle registers a route for method and path under the group prefix.
+// The handler is wrapped with group middleware so that middleware is closest
+// to the handler; Router.Apply still wraps the outer stack at request time.
+func (routeGroup *Group) Handle(method, path string, handler core.Handler) {
+	routeGroup.router.Handle(method, joinGroupPath(routeGroup.prefix, path), routeGroup.wrap(handler))
+}
+
+// wrap applies group middleware in registration order, innermost last.
+func (routeGroup *Group) wrap(handler core.Handler) core.Handler {
+	for middlewareIndex := len(routeGroup.middleware) - 1; middlewareIndex >= 0; middlewareIndex-- {
+		handler = routeGroup.middleware[middlewareIndex](handler)
+	}
+	return handler
+}
+
+// joinGroupPath concatenates a group prefix and a route path so that /v1 and
+// /users become /v1/users. Leading and trailing slashes are normalized to avoid
+// double slashes. An empty join is the root path "/".
+func joinGroupPath(prefix, path string) string {
+	prefix = strings.Trim(prefix, "/")
+	path = strings.Trim(path, "/")
+	if prefix == "" && path == "" {
+		return "/"
+	}
+	if prefix == "" {
+		return "/" + path
+	}
+	if path == "" {
+		return "/" + prefix
+	}
+	return "/" + prefix + "/" + path
 }

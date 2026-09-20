@@ -32,8 +32,8 @@ to understand, test, and change.
 
 - **Zero third-party dependencies.** Just the Go standard library: `net/http`, `log/slog`, `encoding/json`.
 - **Drop-in `net/http` compatibility.** Use `App.Handler()` with `httptest`, existing servers, or your own `http.Server`.
-- **REST-ready routing.** Static paths and named parameters such as `/users/:id`. GET, POST, PUT, PATCH, DELETE helpers.
-- **Middleware pipeline.** Panic recovery, `X-Request-ID` correlation, structured `slog` access logs — plus your own wrappers.
+- **REST-ready routing.** Static paths, named parameters such as `/users/:id`, and route groups. GET, POST, PUT, PATCH, DELETE helpers.
+- **Middleware pipeline.** Panic recovery, `X-Request-ID` correlation, structured `slog` access logs, body limits, timeouts — plus your own wrappers.
 - **Safe JSON errors.** Unknown errors become generic 500s so secrets in `error.Error()` never leak to clients.
 - **Graceful shutdown.** `ListenAndServe` / `Listen` + `Shutdown` for production process lifecycle.
 - **Readable internals.** Linear-scan router, explicit context, no reflection magic, no codegen.
@@ -64,10 +64,10 @@ or a **JSON API starter** you can fork? You are in the right place.
 | Area | What you get |
 |---|---|
 | **HTTP server** | Standard-library-compatible `net/http` handler and lifecycle |
-| **Router** | Static routes and named parameters (`/users/:id`) |
+| **Router** | Static routes, named parameters (`/users/:id`), and prefixed groups |
 | **Methods** | GET, POST, PUT, PATCH, DELETE helpers |
 | **Context** | Params, query strings, headers, JSON/status writers, request-scoped values |
-| **Middleware** | Recover panics, request IDs, structured logs, composable `Use` |
+| **Middleware** | Recover panics, request IDs, structured logs, body limits, timeouts, composable `Use` |
 | **Errors** | Consistent JSON HTTP errors that hide unknown internals |
 | **Ops** | Timeouts, header limits, graceful shutdown |
 
@@ -172,10 +172,10 @@ flowchart TD
 ### Request lifecycle
 
 1. `App.Handler` receives a standard `net/http` request.
-2. The router matches method and path segments.
-3. Middleware wraps the selected handler.
+2. The router matches method and path segments. A path that exists for another method becomes 405 with an `Allow` header.
+3. Middleware wraps the selected handler. Group middleware sits closest to the handler, inside the application stack.
 4. A request-scoped `Context` is created.
-5. The handler reads input or writes a response.
+5. The handler reads input or writes a response. A second `JSON` or `Status` call is rejected without rewriting headers.
 6. Returned errors become safe JSON HTTP errors when no response was written.
 
 ## Project layout
@@ -206,10 +206,12 @@ bodhiApi/
 │       │   └── errors_test.go      # error contract tests
 │       ├── middleware/
 │       │   ├── middleware.go       # recovery, request IDs, structured logs
+│       │   ├── limit.go            # request body size limit
+│       │   ├── timeout.go          # request context timeout
 │       │   └── middleware_test.go  # middleware behavior tests
 │       └── router/
-│           ├── router.go           # route registration and matching
-│           └── router_test.go      # precedence and validation tests
+│           ├── router.go           # route registration, groups, and matching
+│           └── router_test.go      # precedence, groups, and validation tests
 ├── go.mod                         # module metadata — stdlib only
 ├── README.md                      # usage and architecture guide
 └── CONTRIBUTING.md                # human and AI-agent maintenance guide
@@ -224,7 +226,7 @@ bodhiApi/
 | `internal/core/app` | Lifecycle and request dispatch | Router, context, middleware, errors |
 | `internal/core/router` | Registration and matching | Core contracts, context, errors |
 | `internal/core/context` | Request/response state | `net/http` |
-| `internal/core/middleware` | Recovery, request IDs, logging | Core contracts and errors |
+| `internal/core/middleware` | Recovery, request IDs, logging, body limits, timeouts | Core contracts and errors |
 | `internal/core/errors` | Safe HTTP error model | Standard errors and HTTP |
 
 The `internal` packages are not importable by applications outside this module.
@@ -237,6 +239,9 @@ compatibility boundary.
 app.GET("/users", listUsers)
 app.GET("/users/:id", getUser)
 app.POST("/users", createUser)
+
+versionGroup := app.Group("/v1")
+versionGroup.GET("/users", listUsers)
 ```
 
 Current behavior:
@@ -248,7 +253,9 @@ Current behavior:
 - Static routes take precedence over parameter routes.
 - The first matching parameter route is used as fallback.
 - Trailing slashes are significant.
-- A matching path with another method returns 405 details.
+- Route groups prepend a prefix (`/v1` + `/users` becomes `/v1/users`).
+- Group middleware runs inside the application stack, closest to the handler.
+- A matching path with another method returns 405 and sets `Allow`.
 - An unknown path returns a 404 error.
 
 The current router intentionally uses a readable linear scan. A future optimized
@@ -285,6 +292,8 @@ flowchart LR
 - `Recover` converts panics into internal server errors.
 - `RequestID` reuses or generates `X-Request-ID`.
 - `Logger` emits structured `log/slog` request logs.
+- `MaxBytes` wraps the request body with `http.MaxBytesReader`.
+- `Timeout` sets a deadline on the request context via `context.WithTimeout`.
 
 ## Context and errors
 
@@ -292,7 +301,7 @@ flowchart LR
 
 - `Request()` and `ResponseWriter()`
 - `Param`, `Query`, and `Header`
-- `JSON` and `Status` response helpers
+- `JSON` and `Status` response helpers (a second write returns an error)
 - Request-scoped `Set` and `Get` storage
 
 Return an explicit HTTP error when a request is invalid:
@@ -360,13 +369,10 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for design rules and agent guidance.
 
 - Deterministic trie/radix lookup
 - Duplicate and ambiguous route validation
-- Route groups and group-level middleware
-- Full HTTP method support and correct `Allow` headers
+- Full HTTP method support beyond the current helpers
 
 ### Safety and API ergonomics
 
-- Request body limits and configurable timeouts
-- Double-write protection
 - Typed binding and validation
 - Consistent pagination and content negotiation helpers
 

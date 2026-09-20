@@ -152,6 +152,70 @@ func TestRequestContextStatusWritesEmptyResponse(test *testing.T) {
 	}
 }
 
+func TestRequestContextJSONRejectsSecondWrite(test *testing.T) {
+	responseRecorder := httptest.NewRecorder()
+	headerGuard := &panicOnSecondWriteHeader{ResponseWriter: responseRecorder}
+	requestContext := New(headerGuard, httptest.NewRequest(http.MethodGet, "/", nil), nil)
+
+	if err := requestContext.JSON(http.StatusOK, map[string]string{"ok": "true"}); err != nil {
+		test.Fatal(err)
+	}
+	secondError := requestContext.JSON(http.StatusInternalServerError, map[string]string{"ok": "false"})
+	if secondError == nil || secondError.Error() != "bodhiApi: response already written" {
+		test.Fatalf("second JSON error = %v", secondError)
+	}
+	if responseRecorder.Code != http.StatusOK {
+		test.Fatalf("status = %d", responseRecorder.Code)
+	}
+	if !strings.Contains(responseRecorder.Body.String(), `"ok":"true"`) {
+		test.Fatalf("body = %q", responseRecorder.Body.String())
+	}
+	if strings.Contains(responseRecorder.Body.String(), `"ok":"false"`) {
+		test.Fatal("second JSON encoded a body")
+	}
+}
+
+func TestRequestContextStatusRejectsSecondWrite(test *testing.T) {
+	responseRecorder := httptest.NewRecorder()
+	headerGuard := &panicOnSecondWriteHeader{ResponseWriter: responseRecorder}
+	requestContext := New(headerGuard, httptest.NewRequest(http.MethodGet, "/", nil), nil)
+
+	if err := requestContext.Status(http.StatusNoContent); err != nil {
+		test.Fatal(err)
+	}
+	secondError := requestContext.Status(http.StatusOK)
+	if secondError == nil || secondError.Error() != "bodhiApi: response already written" {
+		test.Fatalf("second Status error = %v", secondError)
+	}
+	if responseRecorder.Code != http.StatusNoContent {
+		test.Fatalf("status = %d", responseRecorder.Code)
+	}
+}
+
+func TestRequestContextSetRequestReplacesIncomingRequest(test *testing.T) {
+	originalRequest := httptest.NewRequest(http.MethodGet, "/old", nil)
+	requestContext := New(httptest.NewRecorder(), originalRequest, nil)
+	replacementRequest := httptest.NewRequest(http.MethodPost, "/new", nil)
+	requestContext.SetRequest(replacementRequest)
+	if requestContext.Request() != replacementRequest {
+		test.Fatal("SetRequest did not replace the request")
+	}
+}
+
+// panicOnSecondWriteHeader fails the test if WriteHeader is called twice.
+type panicOnSecondWriteHeader struct {
+	http.ResponseWriter
+	headerWritten bool
+}
+
+func (responseWriter *panicOnSecondWriteHeader) WriteHeader(statusCode int) {
+	if responseWriter.headerWritten {
+		panic("WriteHeader called twice")
+	}
+	responseWriter.headerWritten = true
+	responseWriter.ResponseWriter.WriteHeader(statusCode)
+}
+
 func TestRequestContextQueryReturnsFirstValue(test *testing.T) {
 	httpRequest := httptest.NewRequest(http.MethodGet, "/search?tag=one&tag=two", nil)
 	requestContext := New(httptest.NewRecorder(), httpRequest, nil)

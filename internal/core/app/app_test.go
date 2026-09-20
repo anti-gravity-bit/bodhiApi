@@ -51,8 +51,48 @@ func TestApplicationReturnsNotFoundAndMethodNotAllowed(test *testing.T) {
 	if methodResponse.Code != http.StatusMethodNotAllowed {
 		test.Fatalf("method status = %d", methodResponse.Code)
 	}
+	if methodResponse.Header().Get("Allow") != http.MethodGet {
+		test.Fatalf("Allow = %q", methodResponse.Header().Get("Allow"))
+	}
 	if !strings.Contains(methodResponse.Body.String(), `"code":"method_not_allowed"`) {
 		test.Fatalf("method body = %q", methodResponse.Body.String())
+	}
+	if missingResponse.Header().Get("Allow") != "" {
+		test.Fatalf("404 should not set Allow: %q", missingResponse.Header().Get("Allow"))
+	}
+}
+
+func TestApplicationSetsAllowHeaderOnMethodNotAllowed(test *testing.T) {
+	application := New(Info{})
+	application.GET("/users", func(requestContext core.Context) error { return requestContext.Status(http.StatusNoContent) })
+	application.POST("/users", func(requestContext core.Context) error { return requestContext.Status(http.StatusCreated) })
+
+	responseRecorder := httptest.NewRecorder()
+	application.Handler().ServeHTTP(responseRecorder, httptest.NewRequest(http.MethodDelete, "/users", nil))
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		test.Fatalf("status = %d", responseRecorder.Code)
+	}
+	if responseRecorder.Header().Get("Allow") != "GET, POST" {
+		test.Fatalf("Allow = %q", responseRecorder.Header().Get("Allow"))
+	}
+}
+
+func TestApplicationGroupRegistersPrefixedRoute(test *testing.T) {
+	application := New(Info{})
+	application.Group("/v1").GET("/users", func(requestContext core.Context) error {
+		return requestContext.Status(http.StatusNoContent)
+	})
+
+	matchedRecorder := httptest.NewRecorder()
+	application.Handler().ServeHTTP(matchedRecorder, httptest.NewRequest(http.MethodGet, "/v1/users", nil))
+	if matchedRecorder.Code != http.StatusNoContent {
+		test.Fatalf("grouped status = %d", matchedRecorder.Code)
+	}
+
+	missingRecorder := httptest.NewRecorder()
+	application.Handler().ServeHTTP(missingRecorder, httptest.NewRequest(http.MethodGet, "/users", nil))
+	if missingRecorder.Code != http.StatusNotFound {
+		test.Fatalf("unprefixed status = %d", missingRecorder.Code)
 	}
 }
 

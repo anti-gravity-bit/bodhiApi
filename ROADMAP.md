@@ -11,21 +11,22 @@ The README already lists product ideas. This file is the **interview bar**, not 
 - [x] Graceful shutdown example
 - [x] Public tests + CI
 - [x] Gold-standard README
+- [x] Route groups + group middleware
+- [x] Double-write protection on `Context.JSON`
+- [x] `Allow` header on 405
+- [x] Request body limit
+- [x] Timeout middleware via `context.WithTimeout`
 
 ## Remaining (pick in order; stop when interviews start)
 
 ### Must (if a week is free)
 
-1. Route groups + group middleware
-2. Double-write protection on `Context.JSON`
-3. `Allow` header on 405
-4. Request body limit
+Must-list complete.
 
 ### Should
 
 5. OpenAPI sketch from registered routes
 6. Example with `/healthz` + `/readyz` split
-7. One middleware: timeout via `context.WithTimeout`
 
 ### Won’t for SDE II
 

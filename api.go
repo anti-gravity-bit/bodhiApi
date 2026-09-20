@@ -21,6 +21,7 @@ package bodhiApi
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/anti-gravity-bit/bodhiApi/internal/core"
 	coreapp "github.com/anti-gravity-bit/bodhiApi/internal/core/app"
@@ -60,6 +61,9 @@ type HTTPError = coreerrors.HTTPError
 // Router stores routes and middleware independently of App server lifecycle.
 // Use it when you need matching or a net/http handler without ListenAndServe.
 type Router = corerouter.Router
+
+// Group is a prefixed subset of routes sharing a Router and optional middleware.
+type Group = corerouter.Group
 
 // RequestContext is the concrete request-scoped context implementation.
 // Most applications should depend on the Context interface instead.
@@ -102,6 +106,12 @@ func RequestID(nextHandler Handler) Handler { return coremiddleware.RequestID(ne
 // Logger returns middleware that emits one structured slog record per request.
 // A nil logger uses slog.Default().
 func Logger(logger *slog.Logger) Middleware { return coremiddleware.Logger(logger) }
+
+// MaxBytes limits the request body to maxBytes using http.MaxBytesReader.
+func MaxBytes(maxBytes int64) Middleware { return coremiddleware.MaxBytes(maxBytes) }
+
+// Timeout sets a deadline on the request context for downstream handlers.
+func Timeout(duration time.Duration) Middleware { return coremiddleware.Timeout(duration) }
 
 // Compile-time assertion: the concrete request context implements Context.
 var _ Context = (*RequestContext)(nil)

@@ -8,6 +8,7 @@ package context
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 )
 
@@ -54,6 +55,13 @@ func New(responseWriter http.ResponseWriter, httpRequest *http.Request, routePar
 // Request returns the original incoming HTTP request.
 func (requestContext *RequestContext) Request() *http.Request { return requestContext.httpRequest }
 
+// SetRequest replaces the incoming HTTP request stored on this context.
+// Middleware uses this after wrapping the request with a derived context, such
+// as a timeout deadline. The replacement must not be nil.
+func (requestContext *RequestContext) SetRequest(httpRequest *http.Request) {
+	requestContext.httpRequest = httpRequest
+}
+
 // ResponseWriter returns the writer used for the outgoing response.
 func (requestContext *RequestContext) ResponseWriter() http.ResponseWriter {
 	return requestContext.responseWriter
@@ -81,7 +89,12 @@ func (requestContext *RequestContext) Header(name string) string {
 // success. The written flag is set before encoding so a later application error
 // converter will not replace a partially sent body. If encoding fails, the
 // caller receives that error after headers and status have already been sent.
+// A second write returns "bodhiApi: response already written" without calling
+// WriteHeader or encoding again.
 func (requestContext *RequestContext) JSON(status int, value any) error {
+	if requestContext.responseWritten {
+		return fmt.Errorf("bodhiApi: response already written")
+	}
 	requestContext.responseWriter.Header().Set("Content-Type", "application/json; charset=utf-8")
 	requestContext.responseWriter.WriteHeader(status)
 	requestContext.responseWritten = true
@@ -89,7 +102,12 @@ func (requestContext *RequestContext) JSON(status int, value any) error {
 }
 
 // Status writes only an HTTP status code and records that the response was written.
+// A second write returns "bodhiApi: response already written" without calling
+// WriteHeader again.
 func (requestContext *RequestContext) Status(statusCode int) error {
+	if requestContext.responseWritten {
+		return fmt.Errorf("bodhiApi: response already written")
+	}
 	requestContext.responseWriter.WriteHeader(statusCode)
 	requestContext.responseWritten = true
 	return nil

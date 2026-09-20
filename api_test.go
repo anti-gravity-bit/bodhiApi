@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPublicApplicationAPI(test *testing.T) {
@@ -211,6 +213,58 @@ func TestPublicLoggerNilLoggerDoesNotPanic(test *testing.T) {
 func TestShutdownBeforeStart(test *testing.T) {
 	if err := New(Info{}).Shutdown(context.Background()); err != nil {
 		test.Fatal(err)
+	}
+}
+
+func TestPublicGroupMatchesPrefixedRoute(test *testing.T) {
+	application := New(Info{})
+	application.Group("/v1").GET("/users", func(requestContext Context) error {
+		return requestContext.Status(http.StatusNoContent)
+	})
+
+	responseRecorder := httptest.NewRecorder()
+	application.Handler().ServeHTTP(responseRecorder, httptest.NewRequest(http.MethodGet, "/v1/users", nil))
+	if responseRecorder.Code != http.StatusNoContent {
+		test.Fatalf("status = %d", responseRecorder.Code)
+	}
+}
+
+func TestPublicMaxBytesLimitsBody(test *testing.T) {
+	application := New(Info{})
+	application.Use(MaxBytes(4))
+	application.POST("/echo", func(requestContext Context) error {
+		_, readError := io.ReadAll(requestContext.Request().Body)
+		return readError
+	})
+
+	overLimitRecorder := httptest.NewRecorder()
+	application.Handler().ServeHTTP(overLimitRecorder, httptest.NewRequest(http.MethodPost, "/echo", strings.NewReader("12345")))
+	if overLimitRecorder.Code != http.StatusInternalServerError {
+		test.Fatalf("over-limit status = %d", overLimitRecorder.Code)
+	}
+
+	withinLimitRecorder := httptest.NewRecorder()
+	application.Handler().ServeHTTP(withinLimitRecorder, httptest.NewRequest(http.MethodPost, "/echo", strings.NewReader("1234")))
+	if withinLimitRecorder.Code != http.StatusOK {
+		test.Fatalf("within-limit status = %d body = %q", withinLimitRecorder.Code, withinLimitRecorder.Body.String())
+	}
+}
+
+func TestPublicTimeoutSetsDeadline(test *testing.T) {
+	application := New(Info{})
+	application.Use(Timeout(time.Second))
+	application.GET("/timed", func(requestContext Context) error {
+		_, hasDeadline := requestContext.Request().Context().Deadline()
+		if !hasDeadline {
+			test.Fatal("request context should have a deadline")
+		}
+		return requestContext.Status(http.StatusNoContent)
+	})
+
+	responseRecorder := httptest.NewRecorder()
+	application.Handler().ServeHTTP(responseRecorder, httptest.NewRequest(http.MethodGet, "/timed", nil))
+	if responseRecorder.Code != http.StatusNoContent {
+		test.Fatalf("status = %d", responseRecorder.Code)
 	}
 }
 

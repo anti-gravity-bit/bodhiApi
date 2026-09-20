@@ -192,12 +192,123 @@ func TestRouterHandlerNotFoundAndMethodNotAllowed(test *testing.T) {
 	if methodRecorder.Code != http.StatusMethodNotAllowed {
 		test.Fatalf("method status = %d", methodRecorder.Code)
 	}
+	if methodRecorder.Header().Get("Allow") != http.MethodGet {
+		test.Fatalf("Allow = %q", methodRecorder.Header().Get("Allow"))
+	}
 	var methodBody map[string]any
 	if err := json.Unmarshal(methodRecorder.Body.Bytes(), &methodBody); err != nil {
 		test.Fatal(err)
 	}
 	if methodBody["code"] != "method_not_allowed" {
 		test.Fatalf("method body = %#v", methodBody)
+	}
+	if notFoundRecorder.Header().Get("Allow") != "" {
+		test.Fatalf("404 should not set Allow: %q", notFoundRecorder.Header().Get("Allow"))
+	}
+}
+
+func TestRouterHandlerSetsAllowHeaderOnMethodNotAllowed(test *testing.T) {
+	routerInstance := New()
+	routerInstance.GET("/users", func(requestContext core.Context) error { return requestContext.Status(http.StatusNoContent) })
+	routerInstance.POST("/users", func(requestContext core.Context) error { return requestContext.Status(http.StatusCreated) })
+
+	responseRecorder := httptest.NewRecorder()
+	routerInstance.Handler().ServeHTTP(responseRecorder, httptest.NewRequest(http.MethodPut, "/users", nil))
+	if responseRecorder.Code != http.StatusMethodNotAllowed {
+		test.Fatalf("status = %d", responseRecorder.Code)
+	}
+	if responseRecorder.Header().Get("Allow") != "GET, POST" {
+		test.Fatalf("Allow = %q", responseRecorder.Header().Get("Allow"))
+	}
+}
+
+func TestGroupRegistersPrefixedRoute(test *testing.T) {
+	routerInstance := New()
+	routerInstance.Group("/v1").GET("/users", func(core.Context) error { return nil })
+
+	if !routerInstance.Match(http.MethodGet, "/v1/users").Found {
+		test.Fatal("GET /v1/users should match Group(\"/v1\").GET(\"/users\")")
+	}
+	if routerInstance.Match(http.MethodGet, "/users").Found {
+		test.Fatal("unprefixed /users should not match a /v1 group route")
+	}
+}
+
+func TestGroupJoinsPrefixWithoutDoubleSlash(test *testing.T) {
+	if joinGroupPath("/v1", "/users") != "/v1/users" {
+		test.Fatalf("join /v1 + /users = %q", joinGroupPath("/v1", "/users"))
+	}
+	if joinGroupPath("/v1/", "/users") != "/v1/users" {
+		test.Fatalf("join /v1/ + /users = %q", joinGroupPath("/v1/", "/users"))
+	}
+	if joinGroupPath("/v1", "users") != "/v1/users" {
+		test.Fatalf("join /v1 + users = %q", joinGroupPath("/v1", "users"))
+	}
+	if joinGroupPath("", "/users") != "/users" {
+		test.Fatalf("join empty + /users = %q", joinGroupPath("", "/users"))
+	}
+	if joinGroupPath("/v1", "") != "/v1" {
+		test.Fatalf("join /v1 + empty = %q", joinGroupPath("/v1", ""))
+	}
+	if joinGroupPath("", "") != "/" {
+		test.Fatalf("join empty + empty = %q", joinGroupPath("", ""))
+	}
+}
+
+func TestNestedGroupJoinsPrefixes(test *testing.T) {
+	routerInstance := New()
+	routerInstance.Group("/v1").Group("/admin").GET("/users", func(core.Context) error { return nil })
+	if !routerInstance.Match(http.MethodGet, "/v1/admin/users").Found {
+		test.Fatal("nested group should register /v1/admin/users")
+	}
+}
+
+func TestGroupMethodHelpers(test *testing.T) {
+	routerInstance := New()
+	routeGroup := routerInstance.Group("/v1")
+	routeGroup.GET("/get", func(core.Context) error { return nil })
+	routeGroup.POST("/post", func(core.Context) error { return nil })
+	routeGroup.PUT("/put", func(core.Context) error { return nil })
+	routeGroup.PATCH("/patch", func(core.Context) error { return nil })
+	routeGroup.DELETE("/delete", func(core.Context) error { return nil })
+
+	for method, path := range map[string]string{http.MethodGet: "/v1/get", http.MethodPost: "/v1/post", http.MethodPut: "/v1/put", http.MethodPatch: "/v1/patch", http.MethodDelete: "/v1/delete"} {
+		if !routerInstance.Match(method, path).Found {
+			test.Fatalf("%s %s did not match", method, path)
+		}
+	}
+}
+
+func TestGroupMiddlewareRunsInsideRouterStack(test *testing.T) {
+	var callOrder []string
+	middlewareFactory := func(name string) core.Middleware {
+		return func(nextHandler core.Handler) core.Handler {
+			return func(requestContext core.Context) error {
+				callOrder = append(callOrder, name+" before")
+				handlerError := nextHandler(requestContext)
+				callOrder = append(callOrder, name+" after")
+				return handlerError
+			}
+		}
+	}
+	routerInstance := New()
+	routerInstance.Use(middlewareFactory("router"))
+	routeGroup := routerInstance.Group("/v1")
+	routeGroup.Use(middlewareFactory("group"))
+	routeGroup.GET("/users", func(core.Context) error {
+		callOrder = append(callOrder, "handler")
+		return nil
+	})
+
+	matchResult := routerInstance.Match(http.MethodGet, "/v1/users")
+	if !matchResult.Found {
+		test.Fatal("grouped route should match")
+	}
+	if err := routerInstance.Apply(matchResult.Handler)(nil); err != nil {
+		test.Fatal(err)
+	}
+	if !reflect.DeepEqual(callOrder, []string{"router before", "group before", "handler", "group after", "router after"}) {
+		test.Fatalf("call order = %#v", callOrder)
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 // Implementations must keep stored values isolated to one HTTP request. Methods
 // that write a response (JSON, Status) are responsible for recording that a
 // response has been written so the application does not overwrite it when a
-// later error is returned.
+// later error is returned. A second write must not call WriteHeader again.
 type Context interface {
 	// Request returns the original incoming net/http request.
 	Request() *http.Request

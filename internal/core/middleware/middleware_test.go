@@ -2,13 +2,16 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/anti-gravity-bit/bodhiApi/internal/core"
 	corecontext "github.com/anti-gravity-bit/bodhiApi/internal/core/context"
@@ -153,6 +156,69 @@ func TestLoggerOmitsNonStringRequestID(test *testing.T) {
 	}
 	if strings.Contains(logBuffer.String(), "request_id") {
 		test.Fatalf("non-string request ID should be omitted: %q", logBuffer.String())
+	}
+}
+
+func TestMaxBytesLimitsRequestBody(test *testing.T) {
+	httpRequest := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("abcdefghij"))
+	requestContext := corecontext.New(httptest.NewRecorder(), httpRequest, nil)
+	handlerError := MaxBytes(4)(func(requestContext core.Context) error {
+		_, readError := io.ReadAll(requestContext.Request().Body)
+		return readError
+	})(requestContext)
+	if handlerError == nil {
+		test.Fatal("expected max bytes error")
+	}
+	var maxBytesError *http.MaxBytesError
+	if !errors.As(handlerError, &maxBytesError) {
+		test.Fatalf("error = %v", handlerError)
+	}
+}
+
+func TestMaxBytesAllowsBodyWithinLimit(test *testing.T) {
+	httpRequest := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("abcd"))
+	requestContext := corecontext.New(httptest.NewRecorder(), httpRequest, nil)
+	var readBody string
+	if err := MaxBytes(4)(func(requestContext core.Context) error {
+		bodyBytes, readError := io.ReadAll(requestContext.Request().Body)
+		readBody = string(bodyBytes)
+		return readError
+	})(requestContext); err != nil {
+		test.Fatal(err)
+	}
+	if readBody != "abcd" {
+		test.Fatalf("body = %q", readBody)
+	}
+}
+
+func TestTimeoutSetsRequestDeadline(test *testing.T) {
+	requestContext := corecontext.New(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), nil)
+	var sawDeadline bool
+	if err := Timeout(50 * time.Millisecond)(func(requestContext core.Context) error {
+		deadline, hasDeadline := requestContext.Request().Context().Deadline()
+		sawDeadline = hasDeadline && time.Until(deadline) <= 50*time.Millisecond
+		return nil
+	})(requestContext); err != nil {
+		test.Fatal(err)
+	}
+	if !sawDeadline {
+		test.Fatal("request context should have a timeout deadline")
+	}
+}
+
+func TestTimeoutCancelsRequestContext(test *testing.T) {
+	requestContext := corecontext.New(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil), nil)
+	handlerError := Timeout(10 * time.Millisecond)(func(requestContext core.Context) error {
+		select {
+		case <-requestContext.Request().Context().Done():
+			return requestContext.Request().Context().Err()
+		case <-time.After(time.Second):
+			test.Fatal("timeout did not fire")
+			return nil
+		}
+	})(requestContext)
+	if !errors.Is(handlerError, context.DeadlineExceeded) {
+		test.Fatalf("error = %v", handlerError)
 	}
 }
 
